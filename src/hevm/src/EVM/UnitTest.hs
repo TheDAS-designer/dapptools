@@ -576,18 +576,28 @@ word32Bytes :: Word32 -> ByteString
 word32Bytes x = BS.pack [byteAt x (3 - i) | i <- [0..3]]
 
 setupCall :: TestVMParams -> Text -> AbiValue -> EVM ()
-setupCall TestVMParams{..} sig args = do
+setupCall TestVMParams{..} sig args =
+  let txdata = ConcreteBuffer $ abiMethod sig args
+      from = testCaller
+      to = testAddress
+      gas = testGasCall
+      gasPrice = testGasprice
+  in call from to txdata gas gasPrice 0
+
+call :: Addr -> Addr -> Buffer -> W256 -> W256 -> W256 -> EVM ()
+call from to txdata txgas gasPrice value = do
   resetState
   assign (tx . isCreate) False
-  loadContract testAddress
-  assign (state . calldata) (ConcreteBuffer $ abiMethod sig args, literal . num . BS.length $ abiMethod sig args)
-  assign (state . caller) (litAddr testCaller)
-  assign (state . gas) (w256 testGasCall)
-  origin' <- fromMaybe (initialContract (RuntimeCode mempty)) <$> use (env . contracts . at testOrigin)
+  loadContract to
+  assign (state . calldata) (txdata,  literal . num $ len txdata)
+  assign (state . caller) (litAddr from)
+  assign (state . gas) (w256 txgas)
+  origin' <- fromMaybe (initialContract (RuntimeCode mempty)) <$> use (env . contracts . at from)
   let originBal = view balance origin'
-  when (originBal <= (w256 testGasprice) * (w256 testGasCall)) $ error "insufficient balance for gas cost"
+  when (originBal <= (w256 gasPrice) * (w256 txgas) + w256 value) $ error "insufficient balance for call"
   vm <- get
   put $ initTx vm
+
 
 initialUnitTestVm :: UnitTestOptions -> SolcContract -> VM
 initialUnitTestVm (UnitTestOptions {..}) theContract =
