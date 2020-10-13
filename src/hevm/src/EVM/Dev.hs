@@ -3,6 +3,7 @@ module EVM.Dev where
 import System.Directory
 
 import EVM.Dapp
+import EVM.Types
 import EVM.Solidity
 import EVM.UnitTest
 
@@ -19,10 +20,6 @@ import Data.Text (isPrefixOf)
 
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy   as LazyByteString
-
-concatMapM :: Monad m => (a -> m [b]) -> [a] -> m [b]
-concatMapM op = foldr f (pure [])
-    where f x xs = do x <- op x; if null x then xs else do xs <- xs; pure $ x++xs
 
 loadDappInfo :: String -> String -> IO DappInfo
 loadDappInfo path file =

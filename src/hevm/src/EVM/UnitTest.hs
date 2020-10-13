@@ -36,7 +36,7 @@ import Data.SBV    hiding (verbose)
 import Data.Either        (isRight)
 import Data.Foldable      (toList)
 import Data.Map           (Map)
-import Data.Maybe         (fromMaybe, catMaybes, fromJust, isJust, fromMaybe, mapMaybe)
+import Data.Maybe         (fromMaybe, catMaybes, fromJust, isJust, fromMaybe, mapMaybe, isNothing)
 import Data.Monoid        ((<>))
 import Data.Text          (isPrefixOf, stripSuffix, intercalate, Text, pack, unpack)
 import Data.Word          (Word32)
@@ -582,14 +582,14 @@ setupCall TestVMParams{..} sig args =
       to = testAddress
       gas = testGasCall
       gasPrice = testGasprice
-  in call from to txdata gas gasPrice 0
+  in call from (Just to) txdata gas gasPrice 0
 
-call :: Addr -> Addr -> Buffer -> W256 -> W256 -> W256 -> EVM ()
+call :: Addr -> Maybe Addr -> Buffer -> W256 -> W256 -> W256 -> EVM ()
 call from to txdata txgas gasPrice value = do
   resetState
-  assign (tx . isCreate) False
-  loadContract to
-  assign (state . calldata) (txdata,  literal . num $ len txdata)
+  assign (tx . isCreate) (isNothing to)
+  maybe (pure ()) loadContract to
+  when (isJust to) $ assign (state . calldata) (txdata,  literal . num $ len txdata)
   assign (state . caller) (litAddr from)
   assign (state . gas) (w256 txgas)
   origin' <- fromMaybe (initialContract (RuntimeCode mempty)) <$> use (env . contracts . at from)
@@ -632,14 +632,9 @@ initialUnitTestVm (UnitTestOptions {..}) theContract =
     & set (env . contracts . at ethrunAddress) (Just creator)
 
 
-maybeM :: (Monad m) => b -> (a -> b) -> m (Maybe a) -> m b
-maybeM def f mayb = do
-  may <- mayb
-  return $ maybe def f may
-
 getParametersFromEnvironmentVariables :: Maybe Text -> IO TestVMParams
 getParametersFromEnvironmentVariables rpc = do
-  block' <- maybeM EVM.Fetch.Latest (EVM.Fetch.BlockNumber . read) (lookupEnv "DAPP_TEST_NUMBER")
+  block' <- maybe EVM.Fetch.Latest (EVM.Fetch.BlockNumber . read) <$> (lookupEnv "DAPP_TEST_NUMBER")
 
   (miner,ts,blockNum,diff) <-
     case rpc of
