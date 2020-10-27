@@ -592,9 +592,10 @@ call from to txdata txgas gasPrice value = do
   when (isJust to) $ assign (state . calldata) (txdata,  literal . num $ len txdata)
   assign (state . caller) (litAddr from)
   assign (state . gas) (w256 txgas)
+  assign (state . callvalue) (litWord $ w256 value)
   origin' <- fromMaybe (initialContract (RuntimeCode mempty)) <$> use (env . contracts . at from)
   let originBal = view balance origin'
-  when (originBal <= (w256 gasPrice) * (w256 txgas) + w256 value) $ error "insufficient balance for call"
+  when (originBal < (w256 gasPrice) * (w256 txgas) + w256 value) $ error "insufficient balance for call"
   vm <- get
   put $ initTx vm
 

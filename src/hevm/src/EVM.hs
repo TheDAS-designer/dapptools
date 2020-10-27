@@ -1573,12 +1573,7 @@ fetchAccount addr continue =
               (\c -> do assign (cache . fetched . at addr) (Just c)
                         assign (env . contracts . at addr) (Just c)
                         assign result Nothing
-                        tryContinue c)
-  where
-    tryContinue c =
-      if (view external c) && (accountEmpty c)
-        then vmError . NoSuchContract $ addr
-        else continue c
+                        continue c)
 
 readStorage :: Storage -> SymWord -> Maybe (SymWord)
 readStorage (Symbolic s) (S _ loc) = Just . sw256 $ readArray s loc
